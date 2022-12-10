@@ -1,4 +1,3 @@
-alphabet() = collect('A':'Z')
 struct Stacks
     indices :: Int
     itinerary :: Dict{Int, Vector{Char}}
