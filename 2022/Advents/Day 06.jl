@@ -1,4 +1,4 @@
-get_input() = readlines("2022/Inputs/Day 06.txt")[1]
+get_input() = readline("2022/Inputs/Day 06.txt")
 function detect_packet(n::Int)
     function detect_marker(datastream::String)
         i = n - 1
@@ -10,9 +10,9 @@ function detect_packet(n::Int)
         end
         i
     end
-    detect_marker
+    get_input() |> detect_marker
 end
-part1() = get_input() |> detect_packet(4)
+part1() = detect_packet(4)
 part1() # 1287
-part2() = get_input() |> detect_packet(14)
+part2() = detect_packet(14)
 part2() # 3716
