@@ -3,13 +3,11 @@
 ### For Part 1, the user's location is tracked using complex numbers
 ### Instructions move the user through the complex plane
 ### The final coordinates are used to generate the solution
-function read_doc(file :: String)
-    split_comma(doc) = split(doc, ", ")
-    file |> 
-    readline |>
-     split_comma .|> # E.g., "R1, L3, R1" => ["R1", "L3", "R1]
-     String          # Convert Vector{SubString} to Vector{String}
-end
+ 
+# Split to Vector. E.g., "R1, L3, R1" => ["R1", "L3", "R1]
+split_comma(doc) = String.(split(doc, ", "))
+# Read inputs
+read_inputs = split_comma ∘ readline
 
 struct GPS
     z :: Complex    # Position, real ≡ North / South, imag ≡ West / East
@@ -23,9 +21,9 @@ struct GPS
 end
 
 """
-move(position :: GPS, turn :: String, steps :: Real)
+move(position :: GPS, instruction :: String)
 
-Take a starting position on the map, rotate `turn` radians, and move `steps` in the subsequent direction
+Take a starting position on the map, rotate `turn` radians, and move `n` in the subsequent direction
 """
 function move(position :: GPS, instruction :: String)
     # Read direction from `instruction`
@@ -34,12 +32,11 @@ function move(position :: GPS, instruction :: String)
     turn = turn_dict[turn_instr]
     
     # Read travel length from `instruction`
-    step_instr = instruction[2:length(instruction)]
-    steps = parse(Int, step_instr)
+    n = parse(Int, chop(instruction, head = 1, tail = 0))
 
     # Move through space
     θ_new = mod2pi(position.θ + turn)
-    z_new = position.z + steps * exp(θ_new * 1im)
+    z_new = position.z + n * exp(θ_new * 1im)
     GPS(z_new, θ_new)
 end
 
@@ -48,15 +45,15 @@ function displacement(position :: GPS)
 end
 
 file = "Inputs/Day 01.txt"
-document = read_doc(file)
+document = read_inputs(file)
 position = GPS()
 final_position = reduce(move, vcat([position], document))
 displacement(final_position) # 146.0
 
 ## Part 2
 ### For Part 2, a change in approach is used
-### Instead of tracking a particle (e.g., the user) through the complex plane,
-### All integer coordinate pairs will be recorded
+### Instead of tracking a particle (e.g., an agent) through the complex plane,
+### The integer coordinate pairs traversed are recorded
 ### The assumption of integer steps makes intersections easier to identify whilst keeping the problem soluble
 
 abstract type Direction end
@@ -66,17 +63,12 @@ struct East <: Direction end
 struct West <: Direction end
 
 mutable struct Agent
-    P :: Vector{Integer}
-    dir :: Type
+    P::Vector{Integer}
+    facing::Type
     visited::Vector{Vector{Integer}}
 end
 
 Agent() = Agent([0, 0], North, [[0, 0]])
-
-function Agent(agent::Agent, dir::Type)
-    agent.dir = dir
-    agent
-end
 
 function turn!(agent::Agent, LR::String)
     # Catch error input
@@ -84,10 +76,10 @@ function turn!(agent::Agent, LR::String)
     # Setup the direction mapping
     # E.g., "R" gives North => East
     compass = [North, East, South, West]
-    right_turn = Dict(zip(compass, circshift(compass, -1)))
-    left_turn = Dict(zip(compass, circshift(compass, 1)))
+    rt = Dict(zip(compass, circshift(compass, -1)))
+    lt = Dict(zip(compass, circshift(compass, 1)))
     # Apply turn
-    agent.dir = Dict("R" => right_turn[agent.dir], "L" => left_turn[agent.dir])[LR]
+    agent.facing = Dict("R" => rt[agent.facing], "L" => lt[agent.facing])[LR]
     agent
 end
 
@@ -96,15 +88,15 @@ turn_left!(agent::Agent) = turn!(agent, "L")
 
 function move!(agent::Agent)
     # Get direction agent is facing e.g., North
-    dir = agent.dir
+    facing = agent.facing
     # Calculate change in x & y
-    Δx = Dict(North => 0, South => 0, East => 1, West => -1)[dir]
-    Δy = Dict(North => 1, South => -1, East => 0, West => 0)[dir]
+    Δx = Dict(North => 0, South => 0, East => 1, West => -1)[facing]
+    Δy = Dict(North => 1, South => -1, East => 0, West => 0)[facing]
     # Take step
     P₂ = agent.P .+ [Δx, Δy]
     # Update agent
     agent.P = P₂
-    agent.visited = vcat(agent.visited, [P₂])
+    append!(agent.visited, [P₂])
     agent
 end
 
@@ -113,21 +105,17 @@ function move!(agent::Agent, instruction::String)
     LR = instruction[1]
     # Extract number of steps
     n = parse(Int, chop(instruction, head = 1, tail = 0))
-    # Repeat move n times. I.e., [move!, move!, ..., (n times)]
+    # Repeat move! n times. I.e., [move!, move!, ..., (n times)]
     moves! = repeat([move!], n)
-    # Identify turn instruction. I.e., turn_right or turn_left
+    # Identify turn! instruction. I.e., turn_right! or turn_left!
     turn! = Dict('R' => turn_right!, 'L' => turn_left!)[LR]
     # Apply instructions. I.e. (move! ∘ ... ∘ move! ∘ turn!)(a)
     (reduce(∘, moves!) ∘ turn!)(agent)
 end
 
-function move!(agent::Agent, instruction::Vector{String})
-    reduce(move!, instruction, init = agent)
-end
+move!(agent::Agent, instruction::Vector{String}) = reduce(move!, instruction, init = agent)
 
-function get_multi_visits(agent::Agent)
-    filter(v -> sum([v == w for w ∈ agent.visited]) > 1, agent.visited)
-end
+get_multi_visits(agent::Agent) = filter(v -> sum(v == w for w ∈ agent.visited) > 1, agent.visited)
 
 function get_first_repeat(agent::Agent)
     multiple_vists = get_multi_visits(agent)
@@ -154,5 +142,5 @@ displacement # 4
 
 # Application
 
-document = read_doc("Inputs/Day 01.txt")
+document = read_inputs("Inputs/Day 01.txt")
 move!(Agent(), document) |> get_first_repeat |> displacement # 131
