@@ -4,15 +4,11 @@
 ### Instructions move the user through the complex plane
 ### The final coordinates are used to generate the solution
 function read_doc(file :: String)
-    # Read file
-    doc = readlines(file)
-    # Select string (from Vector{String}, length 1)
-    doc = doc[1]
-    # Split by ", "
     split_comma(doc) = split(doc, ", ")
-    doc |> 
-    split_comma .|> # Split by comma e.g., "R1, L3" => ["R1", "L3"]
-    String          # Convert Vector{SubString} to Vector{String}
+    file |> 
+    readline |>
+     split_comma .|> # E.g., "R1, L3, R1" => ["R1", "L3", "R1]
+     String          # Convert Vector{SubString} to Vector{String}
 end
 
 struct GPS
@@ -69,75 +65,72 @@ struct South <: Direction end
 struct East <: Direction end
 struct West <: Direction end
 
-struct Agent
-    x :: Integer
-    y :: Integer
+mutable struct Agent
+    P :: Vector{Integer}
     dir :: Type
     visited::Vector{Vector{Integer}}
 end
-Agent() = Agent(0, 0, North, [[0, 0]])
-Agent(a::Agent, dir::Type) = Agent(a.x, a.y, dir, a.visited)
 
-function turn(a::Agent, dir::String)
+Agent() = Agent([0, 0], North, [[0, 0]])
+
+function Agent(agent::Agent, dir::Type)
+    agent.dir = dir
+    agent
+end
+
+function turn!(agent::Agent, LR::String)
     # Catch error input
-    if dir ∉ ["R", "L"] error("dir = '$dir' must be 'L' or 'R' i.e., to turn left or right") end
+    if LR ∉ ["R", "L"] error("LR = '$LR' must be 'L' or 'R' i.e., to turn left or right") end
     # Setup the direction mapping
-    # E.g., R gives North => East
+    # E.g., "R" gives North => East
     compass = [North, East, South, West]
     right_turn = Dict(zip(compass, circshift(compass, -1)))
     left_turn = Dict(zip(compass, circshift(compass, 1)))
     # Apply turn
-    if dir == "R"
-        Agent(a, right_turn[a.dir])
-    else
-        Agent(a, left_turn[a.dir])
-    end
+    agent.dir = Dict("R" => right_turn[agent.dir], "L" => left_turn[agent.dir])[LR]
+    agent
 end
 
-function move(a::Agent)
-    dir = a.dir
-    if dir ∈ [North, South]
-        Δy = Dict(North => 1, South => -1)[dir]
-        y₂ = a.y + Δy
-        new_coord = [a.x, y₂]
-        Agent(a.x, y₂, dir, vcat(a.visited, [new_coord]))
-    else
-        Δx = Dict(East => 1, West => -1)[dir]
-        x₂ = a.x + Δx
-        new_coord = [x₂, a.y]
-        Agent(x₂, a.y, dir, vcat(a.visited, [new_coord]))
-    end
+turn_right!(agent::Agent) = turn!(agent, "R")
+turn_left!(agent::Agent) = turn!(agent, "L")
 
+function move!(agent::Agent)
+    # Get direction agent is facing e.g., North
+    dir = agent.dir
+    # Calculate change in x & y
+    Δx = Dict(North => 0, South => 0, East => 1, West => -1)[dir]
+    Δy = Dict(North => 1, South => -1, East => 0, West => 0)[dir]
+    # Take step
+    P₂ = agent.P .+ [Δx, Δy]
+    # Update agent
+    agent.P = P₂
+    agent.visited = vcat(agent.visited, [P₂])
+    agent
 end
 
-turn_right(a::Agent) = turn(a, "R")
-turn_left(a::Agent) = turn(a, "L")
-
-function move(a::Agent, instruction::String)
-    # Extract turn instruction
-    L_R = instruction[1]
+function move!(agent::Agent, instruction::String)
+    # Extract turn instruction e.g., 'R' or 'L'
+    LR = instruction[1]
     # Extract number of steps
-    n = parse(Int, instruction[2:length(instruction)])
-    # Repeat move n times. I.e., [move, move, ..., (n times)]
-    move_funcs = repeat([move], n)
+    n = parse(Int, chop(instruction, head = 1, tail = 0))
+    # Repeat move n times. I.e., [move!, move!, ..., (n times)]
+    moves! = repeat([move!], n)
     # Identify turn instruction. I.e., turn_right or turn_left
-    turn_func = Dict('R' => turn_right, 'L' => turn_left)[L_R]
-    # Append turn function
-    stepping_funcs = vcat(move_funcs, [turn_func])
-    # Apply instructions. I.e. (move ∘ ... ∘ move ∘ turn_func)(a)
-    reduce(∘, stepping_funcs)(a)
+    turn! = Dict('R' => turn_right!, 'L' => turn_left!)[LR]
+    # Apply instructions. I.e. (move! ∘ ... ∘ move! ∘ turn!)(a)
+    (reduce(∘, moves!) ∘ turn!)(agent)
 end
 
-function move(a::Agent, instruction::Vector{String})
-    reduce(move, instruction, init = a)
+function move!(agent::Agent, instruction::Vector{String})
+    reduce(move!, instruction, init = agent)
 end
 
-function get_multi_visits(a::Agent)
-    filter(v -> sum([v == w for w ∈ a.visited]) > 1, a.visited)
+function get_multi_visits(agent::Agent)
+    filter(v -> sum([v == w for w ∈ agent.visited]) > 1, agent.visited)
 end
 
-function get_first_repeat(a::Agent)
-    multiple_vists = get_multi_visits(a)
+function get_first_repeat(agent::Agent)
+    multiple_vists = get_multi_visits(agent)
     if length(multiple_vists) >= 1
         multiple_vists[1]
     else
@@ -149,16 +142,17 @@ displacement(x::Vector{Integer}) = x .|> abs |> sum
 
 # Illustration
 
-a = Agent() # Agent(0, 0, North, Vector{Integer}[[0, 0]])
+Agent() # Agent(0, 0, North, Vector{Integer}[[0, 0]])
 
-a |> turn_left |> move |> move |> turn_right |> move # Agent(-2, 1, North, Vector{Integer}[[0, 0], [-1, 0], [-2, 0], [-2, 1]])
+Agent() |> turn_left! |> move! |> move! |> turn_right! |> move! # Agent([-2, 1], North, [[0, 0], [-1, 0], [-2, 0], [-2, 1]])
 
-move(a, ["R8", "R4", "R4", "R8"]) |> # Agent(4, 4, North, Vector{Integer}[...])
+move!(Agent())
+
+move!(Agent(), ["R8", "R4", "R4", "R8"]) |> # Agent(4, 4, North, Vector{Integer}[...])
 get_first_repeat |> # [4, 0]
 displacement # 4
 
 # Application
 
-file = "Inputs/Day 01.txt"
-document = read_doc(file)
-move(a, document) |> get_first_repeat |> displacement # 131
+document = read_doc("Inputs/Day 01.txt")
+move!(Agent(), document) |> get_first_repeat |> displacement # 131
