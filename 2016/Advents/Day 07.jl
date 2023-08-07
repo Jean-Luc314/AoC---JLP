@@ -28,8 +28,33 @@ count_ip = length ∘ filter_f(is_tls)
 ip_address = readlines("Inputs/Day 07.txt")
 
 # The first component is never a hypernet
-ip_address .|> (x -> x[1]) .|> ==('[') |> any
+ip_address .|> first .|> ==('[') |> any
 
 count_ip(ip_address) # 110
 
 # Part 2
+function get_abas(string::String)
+    if length(string) == 3
+        if fork(==, first, last)(string) string end
+    else
+        n = 3
+        index = 0:(length(string) - n)
+        slice(string::String) = i -> string[i .+ (1:n)]
+        (filter_f(!isnothing) ∘ map_f(get_abas ∘ slice(string)))(index)
+    end
+end
+get_babs = get_abas
+
+flatten = collect ∘ Iterators.Flatten
+
+get_super_abas = flatten ∘ filter_f(!isnothing) ∘ map_f(get_abas) ∘ odds ∘ split_ip
+get_hyper_babs = flatten ∘ filter_f(!isnothing) ∘ map_f(get_babs) ∘ evens ∘ split_ip
+
+second = first ∘ evens ∘ collect
+bab_to_aba = fork(*, fork(*, second, first), second)
+
+is_ssl(string::String) = (any ∘ map_f(hyper -> hyper ∈ get_super_abas(string)) ∘ map_f(bab_to_aba) ∘ get_hyper_babs)(string)
+
+count_ssl = length ∘ filter_f(is_ssl)
+
+filter_f(is_ssl)(ip_address) # 242
