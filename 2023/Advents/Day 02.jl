@@ -3,7 +3,6 @@ abstract type Cube end
 struct Red   <: Cube end
 struct Green <: Cube end
 struct Blue  <: Cube end
-struct ID end
 
 parse_int(string::String) = parse(Int64, string)
 
