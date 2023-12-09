@@ -1,205 +1,16 @@
-
-# Identify when next to a number / symbol. Anything not a "."
-# Do with shifting?
-
-
-engine_v = engine .|> collect
-engine_v[1]
-
-reshape(engine_v, (10, 10))
-
-engine_matrix = reshape(reduce(vcat, engine_v), 10, 10)
-
-.!is_period.(engine_matrix)
-
-is_period(char::Char)                 = char == '.'
-is_period(char::Vector{Char})         = is_period.(char)
-is_period(char::Vector{Vector{Char}}) = is_period.(char)
-
-is_period(engine_v[2:end])
-is_period(engine_v[1:end - 1])
-
-# Generate numbers by reducing left to right, line by line. Any "." is a separation. Collect into an array of ints.
-# Once you have a number, can you identify whether it is surrounded by symbols? I.e., identify its location, then check neighbourhood.
-
-parse_int(string::String) = parse(Int64, string)
-
-function collect_parts(engine::String, storage::Vector{Int64} = Int64[])
-    # Check if there are any remaining parts in the engine
-    if occursin(r"[0-9]", engine)
-        # Identify the first part, looking left to right
-        # Parse the part into Int64
-        part = parse_int(String(match(r"[0-9]+(?![0-9])", engine * ".").match))
-        # Add the part to storage
-        append!(storage, part)
-        # Remove the identified part from the engine
-        engine = replace(engine, part |> string |> Regex => "", count = 1)
-        # Recurse
-        collect_parts(engine, storage)
-    else
-        # Return the storage of engine parts
-        storage
-    end
-end
-
-linear_engine = prod(engine)
-
-parts = engine |> prod |> collect_parts
-part = parts[1]
-
-engine_parts = collect_parts(linear_engine)
-
-abstract type Direction end
-struct Left      <: Direction end
-struct Right     <: Direction end
-struct Up        <: Direction end
-struct Down      <: Direction end
-struct Leftup    <: Direction end
-struct Rightup   <: Direction end
-struct Leftdown  <: Direction end
-struct Rightdown <: Direction end
-
-function boundary(engine::Vector{String}, direction::Type{T}) where T <: Direction
-    map_direction = Dict(Left => 1, Right => length(engine[1]), Up => 1, Down => length(engine))
-    map_direction[direction]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Left})
-    lr == boundary(engine, direction) ? '.' : engine[ud][lr - 1]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Right})
-    lr == boundary(engine, direction) ? '.' : engine[ud][lr + 1]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Up})
-    ud == boundary(engine, direction) ? '.' : engine[ud - 1][lr]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Down})
-    ud == boundary(engine, direction) ? '.' : engine[ud + 1][lr]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Leftup})
-    lr == boundary(engine, Left) || ud == boundary(engine, Up) ? '.' : engine[ud - 1][lr - 1]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Rightup})
-    lr == boundary(engine, Right) || ud == boundary(engine, Up) ? '.' : engine[ud - 1][lr + 1]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Leftdown})
-    lr == boundary(engine, Left) || ud == boundary(engine, Down) ? '.' : engine[ud + 1][lr - 1]
-end
-
-function look(engine::Vector{String}, lr::Integer, ud::Integer, direction::Type{Rightdown})
-    lr == boundary(engine, Right) || ud == boundary(engine, Down) ? '.' : engine[ud + 1][lr + 1]
-end
-
-function look(engine::Vector{String}, part_location::Integer, direction::Type{T}) where T <: Direction
-    linear_engine = prod(engine)
-    nrow = length(engine[1])
-    min_len = 0
-    max_len = length(linear_engine)
-    lr = Dict(
-        Left      => -1,
-        Right     =>  1,
-        Up        =>  0,
-        Down      =>  0,
-        Leftup    => -1,
-        Rightup   =>  1,
-        Leftdown  => -1,
-        Rightdown =>  1
-        )
-    ud = Dict(
-        Left      =>  0,
-        Right     =>  0,
-        Up        =>  1,
-        Down      => -1,
-        Leftup    =>  1,
-        Rightup   =>  1,
-        Leftdown  => -1,
-        Rightdown => -1
-        )
-    linear_engine[]
-end
-
-function remove_digits(string::String)
-    filter(!isdigit, string)
-end
-
-function remove_periods(string::String)
-    filter(!is_period, string)
-end
-
-# You've not allowed for multiple parts
-
-function locate(part::Integer, engine::Vector{String})
-    linear_engine = prod(engine)
-    part_locations = findfirst(part |> string |> Regex, linear_engine)
-    nrow = length(engine[1])
-    lr = mod.(part_locations .- 1, nrow) .+ 1
-    ud = div.(part_locations, nrow) .+ 1
-    Dict("lr" => lr, "ud" => ud)
-end
-
-function locate(parts::Vector{T}, engine::Vector{String}) where T <: Integer
-    map(p -> locate(p, engine), parts)
-end
-
-function locate(engine::Vector{String})
-    locate(engine |> prod |> collect_parts, engine)
-end
-
-function filter_symbols(engine::Vector{String}, locations::Dict{String, Vector{T}}, i) where T <: Integer
-    println(i)
-    lr = locations["lr"]
-    ud = locations["ud"]
-    neighbours = reduce(
-        (list, direction) -> list * prod([string(look(engine, x, y, direction)) for (x, y) in zip(lr, ud)]),
-        [Up, Down, Left, Right, Leftup, Leftdown, Rightup, Rightdown],
-        init = ""
-        )
-    neighbours |> remove_digits |> remove_periods
-end
-
-function filter_symbols(engine::Vector{String})
-    map((locations, i) -> filter_symbols(engine, locations, i), locate(engine), 1:length(locate(engine)))
-end
-
-function sum_part_numbers(engine::Vector{String})
-    parts = engine |> prod |> collect_parts
-    adjacent_symbols = filter_symbols(engine)
-    sum(parts .* (adjacent_symbols .!= ""))
-end
-
-engine = readlines("2023/Inputs/Day 03.txt")
-
-sum_part_numbers(engine) # 516269
-
-i = 311
-locations = locate(engine)
-locations = locations[i]
-
-# All are length 140
-all(length.(engine) .== 140)
-
-engine = engine[125:127]
-parts = engine |> prod |> collect_parts
-adjacent_symbols = filter_symbols(engine)
-
-filter_symbols(engine, locate(84, engine), 1)
-
-## Start again
-# This time, work within a String environment, calculate boundaries using `mod() == 0` or `1`.
-
+# Part 1 Functions
 struct Engine
+    # An object holding the engine, represented as a String
     components::String
+    # Use dimensions to identify boundaries of the engine
+    # And to look up, down, left, right, etc
     nrow::Integer
     ncol::Integer
 end
 
 function Engine(engine::Vector{String})
+    # Construct an Engine from a Vector{String}
+    # Check the input is square
     if all(length.(engine) .== length(engine[1]))
         Engine(prod(engine), length(engine), length(engine[1]))
     else
@@ -207,17 +18,11 @@ function Engine(engine::Vector{String})
     end
 end
 
-engine = ["467..114..", "...*......", "..35..633.", "......#...", "617*......", ".....+.58.", "..592.....", "......755.", "...\$.*....", ".664.598.."]
-
-engine = Engine(engine)
-
-components = engine.components
-
-storage = Dict{Vector{Integer}, Integer}()
-
+# Convert String => Int64
 parse_int(string::String) = parse(Int64, string)
 
 function collect_parts(components::String, storage::Dict{Vector{T}, T}) where T <: Integer
+    # Collect all the `parts`, numbers, in a String via recursion
     # Check if there are any remaining parts in the engine
     if occursin(r"[0-9]", components)
         search_part = r"[0-9]+"
@@ -238,17 +43,22 @@ function collect_parts(components::String, storage::Dict{Vector{T}, T}) where T 
 end
 
 function collect_parts(engine::Engine)
+    # Expand `collect_parts` to an Engine object
     collect_parts(engine.components, Dict{Vector{Integer}, Integer}())
 end
 
 function collect_parts(engine::String)
+    # Expand `collect_parts` to an Engine object without defining `storage`
     [engine] |> Engine |> collect_parts
 end
 
 function collect_parts(engine::Vector{String})
+    # Expand `collect_parts` to Vector{Engine}
     engine |> Engine |> collect_parts
 end
 
+# Define Direction classes
+# Given a component of the Engine, Direction will identify which adjacent component to inspect
 abstract type Direction end
 struct Left      <: Direction end
 struct Right     <: Direction end
@@ -260,12 +70,18 @@ struct Leftdown  <: Direction end
 struct Rightdown <: Direction end
 
 function look(position::Integer, engine::Engine, direction::Type{T}) where T <: Direction
-    blank = '.'
+    # Given a `position` in the `engine`, extract the component from the relevent `direction`
+    blank = '.' # Use `blank` for boundaries
     components = engine.components
     maxrow = engine.nrow
     maxcol = engine.ncol
+    # Coordinates in square space identifies the boundaries of the `engine`
+    # Horizontal coordinate in the square Engine. I.e., a column in Vector{String}
     x = mod(position - 1, maxrow) + 1
+    # Vertical coordinate in the square Engine. I.e., a row in Vector{String}
     y = div(position, maxrow) + 1
+    # For boundaries, LHS, RHS, Top, Bottom, return `blank`
+    # Otherwise, return the adjacent component from `engine`
     map_direction = Dict(
         Left      => x == 1                     ? blank : components[position - 1],
         Right     => x == maxcol                ? blank : components[position + 1],
@@ -279,52 +95,53 @@ function look(position::Integer, engine::Engine, direction::Type{T}) where T <: 
         map_direction[direction]
 end
     
-look(23, engine, Rightup)
-
 function clockwise()
+    # Vector of clockwise Directions
     [Left, Leftup, Up, Rightup, Right, Rightdown, Down, Leftdown]
 end
 
 function look(position::Integer, engine::Engine)
+    # Loop `clockwise()` and return the adjacent components as a string
     prod(map(direction -> look(position, engine, direction), clockwise()))
 end
     
 function look(position::Vector{T}, engine::Engine) where T <: Integer
+    # Expand `look()` to operate on Vector{Integer}
     map(p -> look(p, engine), position)
 end
 
-look([23, 24], engine)
-
 function remove_digits(string::String)
+    # Remove all [0-9] from a string
     filter(!isdigit, string)
 end
 
+# Identify '.' from a string
 is_period(char::Char) = char == '.'
 
 function remove_periods(string::String)
+    # Remove all '.' from a string
     filter(!is_period, string)
 end
 
-position = [1, 2, 3]
-
 function is_part(position::Vector{T}, engine::Engine) where T <: Integer
+    # Identify all adjacent components using `look()`
     neighbours = look(position, engine)
+    # Ignoring numbers and '.', any remaining symbols implies the `position` is a `part`
     neighbours .|> remove_digits .|> remove_periods .|> ==("") |> !all
 end
 
 function is_part(position::Dict{Vector{Integer}, Integer}, engine::Engine)
+    # Expand `is_part()` to operate on a Dict mapping of `position` to `part`
     map(key -> is_part(key, engine), position |> keys |> collect)
 end
 
-# Collect parts is broken
-position = collect_parts(engine)
-
-is_part(position, engine)
-
 function sum_parts(engine::Engine)
+    # Collect all the `parts` of an `engine`
     position = collect_parts(engine)
+    # Identify which `parts` have adjacent symbols
     valid_parts = is_part(position, engine)
     parts = position |> values |> collect
+    # Return the total of the valid `parts`
     sum(parts .* valid_parts)
 end
 
@@ -333,15 +150,20 @@ engine = "2023/Inputs/Day 03.txt" |> readlines |> Engine
 # Part 1
 engine |> sum_parts # 520019
 
+# Part 2 Functions
+
 function collect_stars(components::String, storage::Vector{T}) where T <: Integer
-    # Check if there are any remaining parts in the engine
+    # Similar to `collect_parts()`, collect all the "*" in a String via recursion
+    # Return the indices of the gears within an `engine`
+    # The "*" will identify when `parts` are a `gear`
+    # Check if there are any remaining "*" in the engine
     if occursin(r"\*", components)
         search_gear = r"\*"
-        # Identify part's location
+        # Identify "*" location
         gear_index = findfirst(search_gear, components)
         # Add to collection
         append!(storage, gear_index)
-        # Remove part from components
+        # Remove "*" from components
         components = replace(components, search_gear => "_", count = 1)
         # Recurse
         collect_stars(components, storage)
@@ -352,20 +174,29 @@ function collect_stars(components::String, storage::Vector{T}) where T <: Intege
 end
 
 function is_gear(stars::Integer)
+    # Given `gear`'s location, determine wether it is valid
+    # A `gear` is valid if it is next to exactly 2 parts
+    
+    # Collect adjacent parts to the `stars`
     neighbours = look(stars, engine)
+    # Use expanded `collect_parts()` to filter for parts
+    # Check if there are exactly two `part` `neighbours`
     neighbours |> collect_parts |> length |> ==(2)
 end
 
 function collect_stars(engine::Engine)
+    # Expand `collect_stars()` to operate on an Engine
     collect_stars(engine.components, Vector{Integer}())
 end
 
 function collect_gears(engine::Engine)
-    stars = collect_stars(engine)
-    filter(is_gear, stars)
+    # Collect all the indices of valid gears
+    stars = collect_stars(engine) # Gear indices
+    filter(is_gear, stars)        # Check `gear` constraints
 end
 
 function find_gear_index(position::Integer, engine::Engine, direction::Type{T}) where T <: Direction
+    # Similar to `look()`, except the index of the neighbour is returned
     blank = '.'
     maxrow = engine.nrow
     maxcol = engine.ncol
@@ -385,6 +216,11 @@ function find_gear_index(position::Integer, engine::Engine, direction::Type{T}) 
 end
 
 function search_part(neighbours::String)
+    # Given a String of `neighbours`, identify the indices of the [0-9] digits
+    # For example, neighbours = "0....6.." corresponds to the neighours of a `position`,
+    # where `neighbours[1]` corresponds to `look(position, engine, clockwise()[1])`, etc
+    # Use findfirst to extract extact the indices of `neighbours` that start and end with [0-9]
+    # Using the indices, identify which Direction the part corresponded to
     indices = findfirst(r"[0-9].+[0-9]", neighbours)
     part_1_direction = clockwise()[indices[begin]]
     part_2_direction = clockwise()[indices[end]]
@@ -392,20 +228,34 @@ function search_part(neighbours::String)
 end
 
 function calculate_gear_ratio(gear::Integer, engine::Engine)
+    # Given a `gear` index, indentify the, exactly, two neighbouring `parts`
+    # Calculate the `gear_ratio` as sum( part_1 * part_2 )
+
+    # Identify adjacent components of a `gear` index
     neighbours = look(gear, engine)
-    gear_index_1 = find_gear_index(gear, engine, search_part(neighbours)[1])
-    gear_index_2 = find_gear_index(gear, engine, search_part(neighbours)[2])
-    parts = engine |> collect_parts
+    # Identify which directions the `parts` are relative to the `gear`. E.g., Left, Rightdown, etc.
+    part_1_direction, part_2_direction = search_part(neighbours)
+    # Using the `part` direction, get the index location of the `part` within `engine.components`
+    gear_index_1 = find_gear_index(gear, engine, part_1_direction)
+    gear_index_2 = find_gear_index(gear, engine, part_2_direction)
+    parts = engine |> collect_parts # Collection of `Vector[Indices] => part_value`
     part_values = parts |> values |> collect
-    is_gear_part_1 = parts |> keys |> collect .|> (x -> gear_index_1 ∈ x)
-    is_gear_part_2 = parts |> keys |> collect .|> (x -> gear_index_2 ∈ x)
+    # Vector to identify which part corresponds to the `gear`. There will be a single 1, all other entries 0
+    is_gear_part_1 = parts |> keys |> collect .|> (part_indices -> gear_index_1 ∈ part_indices)
+    is_gear_part_2 = parts |> keys |> collect .|> (part_indices -> gear_index_2 ∈ part_indices)
+    # Calculate `gear_ratio`
     sum(is_gear_part_1 .* part_values) * sum(is_gear_part_2 .* part_values)
 end
 
 function calculate_gear_ratio(engine::Engine)
+    # Expand `calculate_gear_ratio` to operate on an Engine
+    
+    # Collect all valid gears
     gears = collect_gears(engine)
+    # Calculate and sum the gear ratios
     sum(map(g -> calculate_gear_ratio(g, engine), gears))
 end
 
+# Part 2
 calculate_gear_ratio(engine) # 75519888
 
