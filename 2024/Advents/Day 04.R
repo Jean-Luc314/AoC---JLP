@@ -15,7 +15,7 @@ str_reverse <- function(str) {
     collapse()
 }
 
-search_string <- function(str, word = "XMAS") str_detect(str, word) | str_detect(str, str_reverse(word))
+search_string <- function(str, word = "XMAS") str_count(str, word) + str_count(str, str_reverse(word))
 
 
 
@@ -36,9 +36,9 @@ get_downward_diagonals <- function(matrix) {
   nrow <- dim(matrix)[[1]]
   ncol <- dim(matrix)[[2]]
   c(
-    map(seq(2, nrow - 1), \(i) diag(wordsearch[seq(i, nrow),])),
+    map(seq(2, nrow - 1), \(i) diag(matrix[seq(i, nrow),])),
     list(diag(matrix)),
-    map(seq(2, ncol - 1), \(j) diag(wordsearch[, seq(j, ncol)]))
+    map(seq(2, ncol - 1), \(j) diag(matrix[, seq(j, ncol)]))
   ) |>
     map_chr(collapse)
 }
@@ -75,5 +75,3 @@ c(
 ) |>
   search_string() |>
   sum()
-
-
