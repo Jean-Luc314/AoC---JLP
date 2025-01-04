@@ -1,10 +1,11 @@
 library(tidyverse)
 source("helpers/helpers.R")
 
-input <- input_read_lines("2024", "04")
-input <- input_read_lines_example("2024", "04")
+# Helpers -----------------------------------------------------------------
 
-wordsearch <- input |> str_split("") |> (\(chr) do.call(rbind, chr))()
+input_to_matrix <- function(input) {
+  input |> str_split("") |> (\(chr) do.call(rbind, chr))()
+}
 
 collapse <- function(chr) paste(chr, collapse = "")
 
@@ -17,20 +18,7 @@ str_reverse <- function(str) {
 
 search_string <- function(str, word = "XMAS") str_count(str, word) + str_count(str, str_reverse(word))
 
-
-
-nrow <- dim(wordsearch)[[1]]
-ncol <- dim(wordsearch)[[2]]
-i <- seq(nrow)
-j <- rep(1, ncol)
-# Need list of combinations of i and j
-# For diagonals, use diag() on slices of wordsearch: remove rows / cols and take diag()
-search_line <- function(wordsearch, i, j, direction) {
-  # Supply i and j as vectors for horizontal, vertical, and diagonal, components of wordsearch
-  map2_chr(i, j, \(row, col) wordsearch[row, col]) |>
-    collapse() |>
-    search_string()
-}
+# Part 1 ------------------------------------------------------------------
 
 get_downward_diagonals <- function(matrix) {
   nrow <- dim(matrix)[[1]]
@@ -67,11 +55,43 @@ get_verticals <- function(wordsearch) {
     map_chr(collapse)
 }
 
-c(
-  get_downward_diagonals(wordsearch),
-  get_upward_diagonals(wordsearch),
-  get_horizontals(wordsearch),
-  get_verticals(wordsearch)
-) |>
-  search_string() |>
-  sum()
+part_1 <- function(input) {
+
+  wordsearch <- input_to_matrix(input)
+
+  c(
+    get_downward_diagonals(wordsearch),
+    get_upward_diagonals(wordsearch),
+    get_horizontals(wordsearch),
+    get_verticals(wordsearch)
+  ) |>
+    search_string() |>
+    sum()
+
+}
+
+input <- input_read_lines("2024", "04")
+
+part_1(input) # 2618
+
+# Part 2 ------------------------------------------------------------------
+
+is_mas <- function(matrix, mas = "MAS") matrix |> diag() |> collapse() |> search_string(mas)
+
+is_xmas <- function(matrix, mas = "MAS") is_mas(matrix, mas) & is_mas(flip_matrix(matrix), mas)
+
+part_2 <- function(input) {
+
+  wordsearch <- input_to_matrix(input)
+
+  get_sub_matrix <- function(row, col, size = 3) wordsearch[row + seq(size) - 1, col + seq(size) - 1]
+
+  crossing(row = seq(NROW(wordsearch) - 2), col = seq(NCOL(wordsearch) - 2)) |>
+    mutate(subset = map2(row, col, get_sub_matrix),
+           xmas = map_lgl(subset, is_xmas)) |>
+    pull(xmas) |>
+    sum()
+
+}
+
+part_2(input) # 2011
