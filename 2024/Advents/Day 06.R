@@ -1,8 +1,11 @@
 library(tidyverse)
+library(future)
+library(future.apply)
+library(progressr)
 source("helpers/helpers.R")
 
 input <- input_read_lines("2024", "06")
-input <- input_read_lines_example("2024", "06")
+#input <- input_read_lines_example("2024", "06")
 
 add_one <- function(x) x + 1
 
@@ -128,14 +131,6 @@ part_1(guard) # 5212
 
 # Part 2 ------------------------------------------------------------------
 
-# Detect a loop, use to subset
-# Run guard through subsets to check guard passes along the box to detect a repeat in historic_loc
-
-candidate_obstructions <- puzzle_map |>
-  nchar() |>
-  seq() |>
-  keep(\(i) ! substring(puzzle_map, i, i) %in% c("@", "#", "^"))
-
 obstruct_map <- function(puzzle_map, loc, replacement = "#") {
 
   str_c(
@@ -149,11 +144,45 @@ obstruct_map <- function(puzzle_map, loc, replacement = "#") {
 guard
 puzzle_map |> obstruct_map(14)
 
-results <- tibble(candidate_obstructions) |>
-  mutate(candidate_maps = map_chr(candidate_obstructions, \(loc) obstruct_map(puzzle_map, loc)),
-         test_maps = map_lgl(candidate_maps,
-                             \(candidate_map) project_shift_work(guard, candidate_map, detect_loop = TRUE)$is_loop,
-                             .progress = TRUE)) |>
-  filter(test_maps) |>
-  nrow()
+# Set up a parallel plan
+# Use as many workers as there are cores
+# Inefficient to go above this as the CPU will spend time switching processes
+# instead of working
+plan(multisession, workers = parallel::detectCores())
+
+part_2 <- function(puzzle_map, guard) {
+
+  # Detect a loop, use to subset
+  # Run guard through subsets to check guard passes along the box to detect a repeat in historic_loc
+
+  candidate_obstructions <- puzzle_map |>
+    nchar() |>
+    seq() |>
+    keep(\(i) ! substring(puzzle_map, i, i) %in% c("@", "#", "^"))
+
+  # Track progress through long loop
+  with_progress({
+
+    p <- progressor(steps = length(candidate_obstructions))
+
+    tibble(candidate_obstructions) |>
+      mutate(candidate_maps = map_chr(candidate_obstructions, \(loc) obstruct_map(puzzle_map, loc)),
+             test_maps = future_lapply(candidate_maps,
+                                       \(candidate_map) {
+                                         p() # Increment progress
+                                         project_shift_work(guard, candidate_map, detect_loop = TRUE)$is_loop
+                                       }),
+             test_maps = unlist(test_maps)) |>
+      filter(test_maps) |>
+      nrow()
+
+  })
+
+}
+part_2_results <- part_2(puzzle_map, guard) # Estimate: 11 hours
+part_2_results # 1767
+
+# Switch back to sequential execution
+plan(sequential)
+
 
