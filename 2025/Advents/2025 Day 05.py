@@ -33,7 +33,9 @@ def check_overlap(x_bar, y_bar):
 # Part 1
 lst_id_ranges, ingredients = parse_input(input_file)
 
-sum(map(lambda ingredient : any(map(lambda id_range: check_ingredient(ingredient, id_range), lst_id_ranges)), ingredients)) # 726
+sum(map(lambda ingredient : any(map(lambda id_range: check_ingredient(ingredient, id_range),
+                                    lst_id_ranges)),
+        ingredients)) # 726
 
 # Part 2
 def flatten_range(lst_id_ranges):
@@ -73,5 +75,5 @@ def count_sequence(seq, inclusive = True):
     else:
         return seq[1] - seq[0]
 
-sum(list(map(count_sequence, flatten_range(lst_id_ranges.copy())))) # 354226555270043, too high
+sum(map(count_sequence, flatten_range(lst_id_ranges.copy()))) # 354226555270043
 
