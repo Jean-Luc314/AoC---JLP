@@ -16,7 +16,6 @@ sum(map(reduce, operators, numbers)) # 6169101504608
 
 # Part 2
 split_empty = x -> String.(split(x, ""))
-concat_string = x -> reduce(*, x)
 remove_whitespace = x -> replace(x, r"\s+" => "")
 function split_on(predicate, v)
     result = [String[]]
@@ -31,5 +30,5 @@ function split_on(predicate, v)
 end
 split_on_whitespace = x -> split_on(==(""), x)
 
-numbers_cephalopod = input_file |> remove_last .|> split_empty |> transpose .|> concat_string .|> remove_whitespace |> split_on_whitespace .|> parse_int
+numbers_cephalopod = input_file |> remove_last .|> split_empty |> transpose .|> prod .|> remove_whitespace |> split_on_whitespace .|> parse_int
 sum(map(reduce, operators, numbers_cephalopod)) # 10442199710797
